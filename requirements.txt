@@ -1,6 +1,5 @@
+opencv-python-headless
 streamlit
-tensorflow
 numpy
-opencv-python
 Pillow
-matplotlib
+tensorflow
