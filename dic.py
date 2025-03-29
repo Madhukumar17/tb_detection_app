@@ -6,19 +6,40 @@ from tensorflow.keras.preprocessing import image
 import matplotlib.pyplot as plt
 from PIL import Image
 import gdown
+import os 
+import requests
 
 # Load trained model
 # model_path = "tb_classification_model.h5"  # Ensure this file exists
 # model = tf.keras.models.load_model(model_path)
 
-file_id = "1S6Keu4Qmaj6NrtX3lF3s9tbUFlyYhDhL" 
-output_path = "tb_classification_model.h5"
+# file_id = "1S6Keu4Qmaj6NrtX3lF3s9tbUFlyYhDhL" 
+# output_path = "tb_classification_model.h5"
 
-# Download the model
-gdown.download(f"https://drive.google.com/uc?id={file_id}", output_path, quiet=False)
+# # Download the model
+# gdown.download(f"https://drive.google.com/uc?id={file_id}", output_path, quiet=False)
+
+# # Load the model
+# model = tf.keras.models.load_model(output_path)
+
+
+
+
+# Hugging Face model URL
+url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
+model_path = "tb_classification_model.h5"
+
+# Download model if not already present
+if not os.path.exists(model_path):
+    response = requests.get(url, stream=True)
+    with open(model_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
 
 # Load the model
-model = tf.keras.models.load_model(output_path)
+model = tf.keras.models.load_model(model_path)
+
 
 
 def preprocess_image(img):
