@@ -3,3 +3,4 @@ streamlit
 numpy
 Pillow
 tensorflow
+gdown
