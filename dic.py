@@ -11,7 +11,7 @@ import gdown
 # model_path = "tb_classification_model.h5"  # Ensure this file exists
 # model = tf.keras.models.load_model(model_path)
 
-file_id = "1wZ9W2ILyv4wgfL2bJW1a"
+file_id = "1S6Keu4Qmaj6NrtX3lF3s9tbUFlyYhDhL" 
 output_path = "tb_classification_model.h5"
 
 # Download the model
