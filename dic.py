@@ -39,7 +39,7 @@ if not os.path.exists(model_path):
 
 # Load the model
 model = tf.keras.models.load_model(model_path)
-
+model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
 
 
 def preprocess_image(img):
