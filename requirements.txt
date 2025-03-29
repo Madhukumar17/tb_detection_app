@@ -2,6 +2,5 @@ opencv-python-headless
 streamlit
 numpy
 Pillow
-tensorflow
-gdown
+tensorflow-cpu
 matplotlib
