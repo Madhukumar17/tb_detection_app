@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import cv2
 import tensorflow as tf
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 from tensorflow.keras.preprocessing import image
 import matplotlib.pyplot as plt
 from PIL import Image
