@@ -7,7 +7,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 from tensorflow.keras.preprocessing import image
 import matplotlib.pyplot as plt
 from PIL import Image
-import gdown 
 import requests
 
 # Load trained model
