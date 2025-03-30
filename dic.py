@@ -23,23 +23,28 @@ import requests
 # model = tf.keras.models.load_model(output_path)
 
 
-
-
 # Hugging Face model URL
+
 url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
 model_path = "tb_classification_model.h5"
 
-# Download model if not already present
-if not os.path.exists(model_path):
+# Check if model file exists and is complete
+if not os.path.exists(model_path) or os.path.getsize(model_path) < 800_000_000:  # Approximate size check
+    print("Downloading model...")
     response = requests.get(url, stream=True)
     with open(model_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=1024):
             if chunk:
                 f.write(chunk)
+    print("Download complete.")
 
 # Load the model
-model = tf.keras.models.load_model(model_path)
-model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+try:
+    model = tf.keras.models.load_model(model_path)
+    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+    print("Model loaded successfully.")
+except Exception as e:
+    print(f"Error loading model: {e}")
 
 
 def preprocess_image(img):
