@@ -11,20 +11,6 @@ import requests
 from huggingface_hub import hf_hub_download
 
 
-# Load trained model
-# model_path = "tb_classification_model.h5"  # Ensure this file exists
-# model = tf.keras.models.load_model(model_path)
-
-# file_id = "1S6Keu4Qmaj6NrtX3lF3s9tbUFlyYhDhL" 
-# output_path = "tb_classification_model.h5"
-
-# # Download the model
-# gdown.download(f"https://drive.google.com/uc?id={file_id}", output_path, quiet=False)
-
-# # Load the model
-# model = tf.keras.models.load_model(output_path)
-
-
 # Hugging Face model URL
 
 # url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
