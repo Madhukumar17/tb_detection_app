@@ -98,25 +98,6 @@ def overlay_gradcam(img, heatmap, alpha=0.4):
 
     return superimposed
 
-# LIME
-
-st.subheader("LIME Explanation")
-
-def predict_fn(images):
-    images = np.array(images)
-    return model.predict(images)
-
-explainer = lime_image.LimeImageExplainer()
-explanation = explainer.explain_instance(np.squeeze(img_array[0]),  
-                                         classifier_fn=predict_fn,
-                                         top_labels=2, hide_color=0,
-                                         num_samples=1000)
-
-temp, mask = explanation.get_image_and_mask(explanation.top_labels[0], positive_only=True, num_features=5, hide_rest=False)
-lime_img = mark_boundaries(temp / 255.0, mask)
-
-# Show LIME output
-st.image(lime_img, caption="LIME Explanation", use_container_width=True)
 
 
 # Streamlit UI
