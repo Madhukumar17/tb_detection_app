@@ -148,42 +148,43 @@
 #     st.subheader("Grad-CAM Visualization")
 #     st.image(gradcam_output, caption="Grad-CAM Heatmap", use_container_width=True)
 
-
 import streamlit as st
 import numpy as np
 import cv2
 import tensorflow as tf
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Use CPU
 from tensorflow.keras.preprocessing import image
-import matplotlib.pyplot as plt
 from PIL import Image
 from huggingface_hub import hf_hub_download
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
 
-# ------------------- MODEL LOADING -------------------
+# Disable GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+MODEL_FILENAME = "tb_classification_model.h5"
+
+# Load model from Hugging Face or fallback to local
 @st.cache_resource
 def load_model():
     try:
-        # Try to load from Hugging Face (for Streamlit Cloud)
         model_path = hf_hub_download(
-            repo_id="madboi/TB_Detection-Model", 
-            filename="tb_classification_model.h5"
+            repo_id="madboi/TB_Detection-Model",
+            filename=MODEL_FILENAME,
+            cache_dir="."
         )
-        model = tf.keras.models.load_model(model_path)
-        return model
-    except:
-        # Fallback: load local model file (for Kaggle)
-        if os.path.exists("tb_classification_model.h5"):
-            return tf.keras.models.load_model("tb_classification_model.h5")
-        else:
+    except Exception as e:
+        st.warning(f"Could not fetch from Hugging Face. Trying local fallback… ({e})")
+        if not os.path.exists(MODEL_FILENAME):
             st.error("Model file not found locally. Please upload it or connect to the internet.")
             st.stop()
+        model_path = MODEL_FILENAME
+
+    return tf.keras.models.load_model(model_path)
 
 model = load_model()
 
-# ------------------- PREPROCESSING -------------------
+# Preprocessing function
 def preprocess_image(img):
     img = img.resize((224, 224))
     img_array = image.img_to_array(img)
@@ -192,11 +193,10 @@ def preprocess_image(img):
     img_array = img_array / 255.0
     return np.expand_dims(img_array, axis=0)
 
-# ------------------- GRAD-CAM -------------------
+# Grad-CAM computation
 def compute_gradcam(model, img_array, layer_name="conv4_block5_out"):
     grad_model = tf.keras.models.Model(
-        inputs=model.input, 
-        outputs=[model.get_layer(layer_name).output, model.output]
+        inputs=model.input, outputs=[model.get_layer(layer_name).output, model.output]
     )
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array)
@@ -210,6 +210,7 @@ def compute_gradcam(model, img_array, layer_name="conv4_block5_out"):
     heatmap /= np.max(heatmap) + 1e-10
     return heatmap
 
+# Grad-CAM overlay
 def overlay_gradcam(img, heatmap, alpha=0.4):
     heatmap = cv2.resize(heatmap, (img.width, img.height))
     heatmap = np.uint8(255 * heatmap)
@@ -217,45 +218,45 @@ def overlay_gradcam(img, heatmap, alpha=0.4):
     original = np.array(img)
     if len(original.shape) == 2 or original.shape[-1] == 1:
         original = cv2.cvtColor(original, cv2.COLOR_GRAY2RGB)
-    if heatmap.shape != original.shape:
-        heatmap = cv2.resize(heatmap, (original.shape[1], original.shape[0]))
+    heatmap = cv2.resize(heatmap, (original.shape[1], original.shape[0]))
     superimposed = cv2.addWeighted(original, 1 - alpha, heatmap, alpha, 0)
     return superimposed
 
-# ------------------- STREAMLIT UI -------------------
-st.title("🩺 Tuberculosis Detection using ResNet50")
-st.write("Upload a Chest X-ray image to classify as **Normal** or **Tuberculosis**.")
-uploaded_file = st.file_uploader("Upload Chest X-ray...", type=["jpg", "jpeg", "png"])
+# LIME prediction wrapper
+def predict_fn(images):
+    return model.predict(np.array(images))
+
+# Streamlit UI
+st.set_page_config(page_title="TB Detection", layout="centered")
+st.title("Tuberculosis Detection using ResNet50")
+st.write("Upload a Chest X-ray image to classify as **Normal** or **Tuberculosis (TB)**.")
+
+uploaded_file = st.file_uploader("Choose an X-ray Image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image_pil = Image.open(uploaded_file).convert("RGB")
     st.image(image_pil, caption="Uploaded Image", use_container_width=True)
 
-    # Preprocess and predict
+    # Preprocessing
     img_array = preprocess_image(image_pil)
+
+    # Prediction
     prediction = model.predict(img_array)[0][0]
     result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
     confidence = prediction if prediction > 0.5 else 1 - prediction
-
     st.subheader(f"Prediction: **{result}**")
-    st.write(f"Confidence Score: **{confidence:.2%}**")
+    st.write(f"Confidence: **{confidence:.2%}**")
 
-    # ------------------- Grad-CAM -------------------
-    st.subheader("🔥 Grad-CAM Visualization")
+    # Grad-CAM
     heatmap = compute_gradcam(model, img_array)
     gradcam_image = overlay_gradcam(image_pil, heatmap)
-    st.image(gradcam_image, caption="Grad-CAM Output", use_container_width=True)
 
-    # ------------------- LIME -------------------
-    st.subheader("🧠 LIME Explanation")
-    def lime_predict(images):
-        return model.predict(np.array(images))
-
+    # LIME
     explainer = lime_image.LimeImageExplainer()
     explanation = explainer.explain_instance(
         np.squeeze(img_array[0]),
-        classifier_fn=lime_predict,
-        top_labels=1,
+        classifier_fn=predict_fn,
+        top_labels=2,
         hide_color=0,
         num_samples=1000
     )
@@ -265,6 +266,16 @@ if uploaded_file is not None:
         num_features=5,
         hide_rest=False
     )
-    lime_output = mark_boundaries(temp / 255.0, mask)
-    st.image(lime_output, caption="LIME Explanation", use_container_width=True)
+    lime_image_output = mark_boundaries(temp / 255.0, mask)
 
+    # Display both
+    st.subheader("Model Interpretability")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(gradcam_image, caption="Grad-CAM Heatmap", use_container_width=True)
+    with col2:
+        st.image(lime_image_output, caption="LIME Explanation", use_container_width=True)
+
+
+  
+   
