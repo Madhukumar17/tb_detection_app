@@ -25,26 +25,30 @@ import requests
 
 # Hugging Face model URL
 
-url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
-model_path = "tb_classification_model.h5"
+# url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
+# model_path = "tb_classification_model.h5"
 
-# Check if model file exists and is complete
-if not os.path.exists(model_path) or os.path.getsize(model_path) < 800_000_000:  # Approximate size check
-    print("Downloading model...")
-    response = requests.get(url, stream=True)
-    with open(model_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-    print("Download complete.")
+@st.cache_resource
+def load_model_from_huggingface():
+    url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
+    model_path = "tb_classification_model.h5"
 
-# Load the model
-try:
-    model = tf.keras.models.load_model(model_path)
-    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-    print("Model loaded successfully.")
-except Exception as e:
-    print(f"Error loading model: {e}")
+    if not os.path.exists(model_path) or os.path.getsize(model_path) < 80_000_000:
+        with st.spinner("Downloading model..."):
+            response = requests.get(url, stream=True)
+            with open(model_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+    
+    try:
+        model = tf.keras.models.load_model(model_path)
+        return model
+    except Exception as e:
+        st.error(f"Model loading failed: {e}")
+        st.stop()
+
+model = load_model_from_huggingface()
 
 
 def preprocess_image(img):
