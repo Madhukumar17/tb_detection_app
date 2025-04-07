@@ -30,17 +30,29 @@ import requests
 
 @st.cache_resource
 def load_model_from_huggingface():
-    url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
+    import requests
     model_path = "tb_classification_model.h5"
+    model_url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
 
-    if not os.path.exists(model_path) or os.path.getsize(model_path) < 80_000_000:
-        with st.spinner("Downloading model..."):
-            response = requests.get(url, stream=True)
-            with open(model_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024):
-                    if chunk:
-                        f.write(chunk)
-    
+    # If the file is corrupted or small, delete it
+    if os.path.exists(model_path) and os.path.getsize(model_path) < 80_000_000:
+        os.remove(model_path)
+        st.warning("Corrupted model file found. Re-downloading...")
+
+    # Download model if not present
+    if not os.path.exists(model_path):
+        with st.spinner("Downloading model from Hugging Face..."):
+            try:
+                response = requests.get(model_url, stream=True, timeout=60)
+                with open(model_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+                st.success("Model downloaded successfully!")
+            except Exception as e:
+                st.error(f"Failed to download model: {e}")
+                st.stop()
+
     try:
         model = tf.keras.models.load_model(model_path)
         return model
