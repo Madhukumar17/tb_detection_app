@@ -8,6 +8,8 @@ from tensorflow.keras.preprocessing import image
 import matplotlib.pyplot as plt
 from PIL import Image
 import requests
+from huggingface_hub import hf_hub_download
+
 
 # Load trained model
 # model_path = "tb_classification_model.h5"  # Ensure this file exists
@@ -30,38 +32,23 @@ import requests
 
 @st.cache_resource
 def load_model_from_huggingface():
-    import requests
-    model_path = "tb_classification_model.h5"
-    model_url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
-
-    # If the file is corrupted or small, delete it
-    if os.path.exists(model_path) and os.path.getsize(model_path) < 80_000_000:
-        os.remove(model_path)
-        st.warning("Corrupted model file found. Re-downloading...")
-
-    # Download model if not present
-    if not os.path.exists(model_path):
-        with st.spinner("Downloading model from Hugging Face..."):
-            try:
-                response = requests.get(model_url, stream=True, timeout=60)
-                with open(model_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=1024):
-                        if chunk:
-                            f.write(chunk)
-                st.success("Model downloaded successfully!")
-            except Exception as e:
-                st.error(f"Failed to download model: {e}")
-                st.stop()
-
     try:
+        # Download the model from your Hugging Face repo
+        model_path = hf_hub_download(
+            repo_id="madboi/TB_Detection-Model",  
+            filename="tb_classification_model.h5",  
+        )
+
+        # Load the model
         model = tf.keras.models.load_model(model_path)
         return model
+
     except Exception as e:
         st.error(f"Model loading failed: {e}")
         st.stop()
 
+# Load it once (cached)
 model = load_model_from_huggingface()
-
 
 def preprocess_image(img):
     img = img.resize((224, 224))  # Resize to model input size
