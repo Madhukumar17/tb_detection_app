@@ -5,3 +5,4 @@ Pillow
 tensorflow-cpu
 matplotlib
 requests
+huggingface_hub
