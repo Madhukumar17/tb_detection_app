@@ -166,15 +166,20 @@ from skimage.segmentation import mark_boundaries
 @st.cache_resource
 def load_model():
     try:
+        # Try to load from Hugging Face (for Streamlit Cloud)
         model_path = hf_hub_download(
             repo_id="madboi/TB_Detection-Model", 
             filename="tb_classification_model.h5"
         )
         model = tf.keras.models.load_model(model_path)
         return model
-    except Exception as e:
-        st.error(f"Model loading failed: {e}")
-        st.stop()
+    except:
+        # Fallback: load local model file (for Kaggle)
+        if os.path.exists("tb_classification_model.h5"):
+            return tf.keras.models.load_model("tb_classification_model.h5")
+        else:
+            st.error("Model file not found locally. Please upload it or connect to the internet.")
+            st.stop()
 
 model = load_model()
 
