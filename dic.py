@@ -164,72 +164,96 @@
 import streamlit as st
 import numpy as np
 import tensorflow as tf
-import os
-from PIL import Image
 import cv2
-from huggingface_hub import hf_hub_download
+from PIL import Image
+from tensorflow.keras.preprocessing import image
+import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU
 
-st.title("Tuberculosis Detection using ResNet50 (TFLite)")
-st.write("📤 Upload a Chest X-ray image to classify as **Normal** or **TB**.")
-st.write("📦 Also upload your **`.tflite` model file** below (only once):")
+st.set_page_config(page_title="TB Detection with Grad-CAM", layout="centered")
+st.title("🧠 Tuberculosis Detection using ResNet50 + Grad-CAM")
+st.write("📥 Upload your **`.h5` model file** below (only once):")
 
-# Upload the .tflite model manually
-uploaded_model = st.file_uploader("Upload `.tflite` model", type=["tflite"])
-
-
+# Upload .h5 model
+uploaded_model = st.file_uploader("Upload `.h5` model", type=["h5"])
 
 @st.cache_resource
-def load_tflite_model_from_huggingface():
-    try:
-        model_path = hf_hub_download(
-            repo_id="madboi/TB_Detection-Model",
-            filename="tb_model_float16.tflite"
-        )
-        interpreter = tf.lite.Interpreter(model_path=model_path)
-        interpreter.allocate_tensors()
-        return interpreter
-    except Exception as e:
-        st.error(f"🚨 Could not load model from Hugging Face: {e}")
+def load_model(uploaded_file):
+    if uploaded_file:
+        with open("model.h5", "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        model = tf.keras.models.load_model("model.h5")
+        return model
+    else:
         st.stop()
 
-interpreter = load_tflite_model_from_huggingface()
-lite_model(uploaded_model)
+if uploaded_model:
+    model = load_model(uploaded_model)
 
     # Preprocessing
     def preprocess_image(img):
         img = img.resize((224, 224))
-        img_array = np.array(img)
-        if img_array.ndim == 2:
-            img_array = np.stack([img_array] * 3, axis=-1)
-        elif img_array.shape[-1] == 1:
+        img_array = image.img_to_array(img)
+        if img_array.shape[-1] == 1:
             img_array = np.repeat(img_array, 3, axis=-1)
-        img_array = img_array.astype(np.float32) / 255.0
-        return np.expand_dims(img_array, axis=0)
+        img_array = img_array / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+        return img_array
 
-    # Prediction
-    def predict_tflite(interpreter, img_array):
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        interpreter.set_tensor(input_details[0]['index'], img_array)
-        interpreter.invoke()
-        return interpreter.get_tensor(output_details[0]['index'])[0][0]
+    # Grad-CAM Function
+    def compute_gradcam(model, img_array, layer_name="conv5_block3_out"):
+        grad_model = tf.keras.models.Model(
+            inputs=model.input,
+            outputs=[model.get_layer(layer_name).output, model.output]
+        )
+        with tf.GradientTape() as tape:
+            conv_outputs, predictions = grad_model(img_array)
+            class_idx = tf.argmax(predictions[0])
+            loss = predictions[:, class_idx]
 
-    # Upload image
-    uploaded_image = st.file_uploader("Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
+        grads = tape.gradient(loss, conv_outputs)
+        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+        conv_outputs = conv_outputs.numpy()[0]
+        heatmap = np.dot(conv_outputs, pooled_grads.numpy())
+        heatmap = np.maximum(heatmap, 0)
+        heatmap /= np.max(heatmap) + 1e-10
+        return heatmap
+
+    # Overlay heatmap
+    def overlay_gradcam(img, heatmap, alpha=0.4):
+        heatmap = cv2.resize(heatmap, (img.width, img.height))
+        heatmap = np.uint8(255 * heatmap)
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+        original = np.array(img)
+        if len(original.shape) == 2 or original.shape[-1] == 1:
+            original = cv2.cvtColor(original, cv2.COLOR_GRAY2RGB)
+
+        superimposed = cv2.addWeighted(original, 1 - alpha, heatmap, alpha, 0)
+        return superimposed
+
+    # Upload Image
+    st.write("---")
+    uploaded_image = st.file_uploader("📤 Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
+
     if uploaded_image:
-        image_pil = Image.open(uploaded_image)
-        st.image(image_pil, caption="Uploaded Image", use_container_width=True)
+        image_pil = Image.open(uploaded_image).convert("RGB")
+        st.image(image_pil, caption="🖼️ Uploaded Image", use_container_width=True)
 
         img_array = preprocess_image(image_pil)
-        prediction = predict_tflite(interpreter, img_array)
+        prediction = model.predict(img_array)[0][0]
 
-        result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
+        result = "🦠 Tuberculosis Detected" if prediction > 0.5 else "✅ Normal"
         confidence = prediction if prediction > 0.5 else 1 - prediction
 
-        st.subheader(f"Prediction: **{result}**")
-        st.write(f"Confidence: **{confidence:.2%}**")
+        st.subheader(f"📊 Prediction: **{result}**")
+        st.write(f"🧮 Confidence: **{confidence:.2%}**")
 
-  
-   
+        # Grad-CAM
+        heatmap = compute_gradcam(model, img_array)
+        gradcam_output = overlay_gradcam(image_pil, heatmap)
+
+        st.subheader("🔥 Grad-CAM Heatmap")
+        st.image(gradcam_output, caption="Grad-CAM Visualization", use_container_width=True)
+
