@@ -211,34 +211,34 @@ def preprocess_image(img):
     img_array = img_array.astype(np.float32) / 255.0
     return np.expand_dims(img_array, axis=0)
 
-def predict_fn(images):
-    # For LIME: receive list of images, return predictions
-    images = np.array(images)
-    return model.predict(images)
+# def predict_fn(images):
+#     # For LIME: receive list of images, return predictions
+#     images = np.array(images)
+#     return model.predict(images)
 
-def explain_with_lime(image_pil, prediction):
-    explainer = lime_image.LimeImageExplainer()
+# def explain_with_lime(image_pil, prediction):
+#     explainer = lime_image.LimeImageExplainer()
     
-    img_array = preprocess_image(image_pil)[0]  # shape: (224, 224, 3)
+#     img_array = preprocess_image(image_pil)[0]  # shape: (224, 224, 3)
     
-    explanation = explainer.explain_instance(
-        img_array,
-        predict_fn,
-        top_labels=2,
-        hide_color=0,
-        num_samples=1000
-    )
+#     explanation = explainer.explain_instance(
+#         img_array,
+#         predict_fn,
+#         top_labels=2,
+#         hide_color=0,
+#         num_samples=1000
+#     )
 
-    label_index = 1 if prediction > 0.5 else 0
-    temp, mask = explanation.get_image_and_mask(
-        label=label_index,
-        positive_only=True,
-        hide_rest=False,
-        num_features=5
-    )
+#     label_index = 1 if prediction > 0.5 else 0
+#     temp, mask = explanation.get_image_and_mask(
+#         label=label_index,
+#         positive_only=True,
+#         hide_rest=False,
+#         num_features=5
+#     )
 
-    lime_img = mark_boundaries(temp / 255.0, mask)
-    return lime_img
+#     lime_img = mark_boundaries(temp / 255.0, mask)
+#     return lime_img
 
 
 # ✅ Grad-CAM logic
@@ -291,9 +291,9 @@ if uploaded_image:
     st.subheader("🧠 Grad-CAM Visualization")
     st.image(gradcam_img, caption="Grad-CAM Heatmap", use_container_width=True)
 
-    st.subheader("🟢 LIME Explanation")
-    lime_img = explain_with_lime(image_pil, prediction)
-    st.image(lime_img, caption="LIME Explanation", use_container_width=True)
+    # st.subheader("🟢 LIME Explanation")
+    # lime_img = explain_with_lime(image_pil, prediction)
+    # st.image(lime_img, caption="LIME Explanation", use_container_width=True)
 
 
 
