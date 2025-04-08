@@ -170,7 +170,7 @@ import os
 import requests
 
 # ✅ Must be the FIRST Streamlit command
-st.set_page_config(page_title="TB Detection + Grad-CAM", layout="wide")
+st.set_page_config(page_title="TB Detection + Grad-CAM", layout="center")
 
 # ✅ Load model from GitHub Release only once
 @st.cache_resource
