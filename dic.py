@@ -34,10 +34,13 @@ from skimage.segmentation import mark_boundaries
 #         st.error(f"Model loading failed: {e}")
 #         st.stop()
 
+# Upload file widget should be outside the cached function
+uploaded_model = st.file_uploader("📥 Upload the model (.h5 file) manually", type=["h5"])
+
 @st.cache_resource
-def load_model():
+def load_model(uploaded_file=None):
     try:
-        # Try to load from Hugging Face
+        # Try loading from Hugging Face
         model_path = hf_hub_download(
             repo_id="madboi/TB_Detection-Model",
             filename="tb_classification_model.h5",
@@ -47,20 +50,22 @@ def load_model():
 
     except Exception as e:
         st.warning("🚨 Could not fetch model from Hugging Face.")
-        st.info("📥 Please upload the `.h5` model file manually below.")
-        
-        uploaded_model = st.file_uploader("Upload Model File", type=["h5"])
-        if uploaded_model is not None:
+
+        # Try to use uploaded model if available
+        if uploaded_file is not None:
             with open("uploaded_model.h5", "wb") as f:
-                f.write(uploaded_model.getbuffer())
+                f.write(uploaded_file.getbuffer())
             model = tf.keras.models.load_model("uploaded_model.h5")
             return model
         else:
+            st.error("❌ No model available. Please upload the `.h5` model file.")
             st.stop()
+
 
 # Load it once (cached)
 # model = load_model_from_huggingface()
-model = load_model()
+model = load_model(uploaded_model)
+
 
 
 def preprocess_image(img):
