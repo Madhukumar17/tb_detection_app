@@ -237,7 +237,7 @@ st.write("🩺 Upload a Chest X-ray to Check for TB")
 uploaded_image = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 if uploaded_image:
     image_pil = Image.open(uploaded_image)
-    st.image(image_pil, caption="Uploaded Image", use_container_width=True)
+    st.image(image_pil, caption="Uploaded Image", use_container_width=True, clamp=True)
 
     img_array = preprocess_image(image_pil)
 
