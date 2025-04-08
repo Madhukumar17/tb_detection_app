@@ -164,76 +164,71 @@
 import streamlit as st
 import numpy as np
 import tensorflow as tf
-import cv2
 import os
 from PIL import Image
-from huggingface_hub import hf_hub_download
+import cv2
 
-# Disable GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# Title
 st.title("Tuberculosis Detection using ResNet50 (TFLite)")
-st.write("Upload a Chest X-ray image to classify as **Normal** or **TB**.")
+st.write("📤 Upload a Chest X-ray image to classify as **Normal** or **TB**.")
+st.write("📦 Also upload your **`.tflite` model file** below (only once):")
 
-# Load TFLite model
+# Upload the .tflite model manually
+uploaded_model = st.file_uploader("Upload `.tflite` model", type=["tflite"])
+
 @st.cache_resource
-def load_tflite_model():
+def load_tflite_model(uploaded_file):
     try:
-        model_path = hf_hub_download(
-            repo_id="madboi/TB_Detection-Model",
-            filename="tb_classification_model.tflite"
-        )
-        interpreter = tf.lite.Interpreter(model_path=model_path)
-        interpreter.allocate_tensors()
-        return interpreter
+        if uploaded_file is not None:
+            model_path = "model.tflite"
+            with open(model_path, "wb") as f:
+                f.write(uploaded_file.read())
+            interpreter = tf.lite.Interpreter(model_path=model_path)
+            interpreter.allocate_tensors()
+            return interpreter
+        else:
+            st.stop()
     except Exception as e:
-        st.error(f"🚨 Could not load TFLite model: {e}")
+        st.error(f"🚨 Could not load model: {e}")
         st.stop()
 
-interpreter = load_tflite_model()
+if uploaded_model is not None:
+    interpreter = load_tflite_model(uploaded_model)
 
-# Predict function
-def predict_tflite(interpreter, img_array):
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
+    # Preprocessing
+    def preprocess_image(img):
+        img = img.resize((224, 224))
+        img_array = np.array(img)
+        if img_array.ndim == 2:
+            img_array = np.stack([img_array] * 3, axis=-1)
+        elif img_array.shape[-1] == 1:
+            img_array = np.repeat(img_array, 3, axis=-1)
+        img_array = img_array.astype(np.float32) / 255.0
+        return np.expand_dims(img_array, axis=0)
 
-    interpreter.set_tensor(input_details[0]['index'], img_array.astype(np.float32))
-    interpreter.invoke()
-    output = interpreter.get_tensor(output_details[0]['index'])[0][0]
-    return output
+    # Prediction
+    def predict_tflite(interpreter, img_array):
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        interpreter.set_tensor(input_details[0]['index'], img_array)
+        interpreter.invoke()
+        return interpreter.get_tensor(output_details[0]['index'])[0][0]
 
-# Preprocessing function
-def preprocess_image(img):
-    img = img.resize((224, 224))
-    img_array = np.array(img)
+    # Upload image
+    uploaded_image = st.file_uploader("Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
+    if uploaded_image:
+        image_pil = Image.open(uploaded_image)
+        st.image(image_pil, caption="Uploaded Image", use_container_width=True)
 
-    # Handle grayscale images
-    if img_array.ndim == 2:
-        img_array = np.stack([img_array]*3, axis=-1)
-    elif img_array.shape[-1] == 1:
-        img_array = np.repeat(img_array, 3, axis=-1)
+        img_array = preprocess_image(image_pil)
+        prediction = predict_tflite(interpreter, img_array)
 
-    img_array = img_array.astype(np.float32) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
+        result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
+        confidence = prediction if prediction > 0.5 else 1 - prediction
 
-# Upload image
-uploaded_file = st.file_uploader("Upload a Chest X-ray Image", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    image_pil = Image.open(uploaded_file)
-    st.image(image_pil, caption="Uploaded Image", use_container_width=True)
-
-    img_array = preprocess_image(image_pil)
-    prediction = predict_tflite(interpreter, img_array)
-
-    result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
-    confidence = prediction if prediction > 0.5 else 1 - prediction
-
-    st.subheader(f"Prediction: **{result}**")
-    st.write(f"Confidence: **{confidence:.2%}**")
-
+        st.subheader(f"Prediction: **{result}**")
+        st.write(f"Confidence: **{confidence:.2%}**")
 
   
    
