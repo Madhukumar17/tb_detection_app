@@ -167,6 +167,7 @@ import tensorflow as tf
 import os
 from PIL import Image
 import cv2
+from huggingface_hub import hf_hub_download
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -177,24 +178,24 @@ st.write("📦 Also upload your **`.tflite` model file** below (only once):")
 # Upload the .tflite model manually
 uploaded_model = st.file_uploader("Upload `.tflite` model", type=["tflite"])
 
+
+
 @st.cache_resource
-def load_tflite_model(uploaded_file):
+def load_tflite_model_from_huggingface():
     try:
-        if uploaded_file is not None:
-            model_path = "model.tflite"
-            with open(model_path, "wb") as f:
-                f.write(uploaded_file.read())
-            interpreter = tf.lite.Interpreter(model_path=model_path)
-            interpreter.allocate_tensors()
-            return interpreter
-        else:
-            st.stop()
+        model_path = hf_hub_download(
+            repo_id="madboi/TB_Detection-Model",
+            filename="tb_model_float16.tflite"
+        )
+        interpreter = tf.lite.Interpreter(model_path=model_path)
+        interpreter.allocate_tensors()
+        return interpreter
     except Exception as e:
-        st.error(f"🚨 Could not load model: {e}")
+        st.error(f"🚨 Could not load model from Hugging Face: {e}")
         st.stop()
 
-if uploaded_model is not None:
-    interpreter = load_tflite_model(uploaded_model)
+interpreter = load_tflite_model_from_huggingface()
+lite_model(uploaded_model)
 
     # Preprocessing
     def preprocess_image(img):
