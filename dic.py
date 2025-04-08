@@ -178,82 +178,79 @@ st.write("📥 Upload your **`.h5` model file** below (only once):")
 # Upload .h5 model
 uploaded_model = st.file_uploader("Upload `.h5` model", type=["h5"])
 
+import streamlit as st
+import numpy as np
+import tensorflow as tf
+import cv2
+from PIL import Image
+from tensorflow.keras.preprocessing import image
+
+# GitHub release URL (direct link to the .h5 file)
+MODEL_URL = "https://github.com/Madhukumar17/tb_detection_app/releases/download/v1.0/tb_classification_model.h5"
+
 @st.cache_resource
-def load_model(uploaded_file):
-    if uploaded_file:
-        with open("model.h5", "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        model = tf.keras.models.load_model("model.h5")
+def download_and_load_model():
+    try:
+        model_path = tf.keras.utils.get_file("tb_model.h5", MODEL_URL)
+        model = tf.keras.models.load_model(model_path)
         return model
-    else:
+    except Exception as e:
+        st.error(f"🚨 Model load failed: {e}")
         st.stop()
 
-if uploaded_model:
-    model = load_model(uploaded_model)
+model = download_and_load_model()
 
-    # Preprocessing
-    def preprocess_image(img):
-        img = img.resize((224, 224))
-        img_array = image.img_to_array(img)
-        if img_array.shape[-1] == 1:
-            img_array = np.repeat(img_array, 3, axis=-1)
-        img_array = img_array / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
-        return img_array
+def preprocess_image(img):
+    img = img.resize((224, 224))
+    img_array = image.img_to_array(img)
+    if img_array.shape[-1] == 1:
+        img_array = np.repeat(img_array, 3, axis=-1)
+    img_array = img_array / 255.0
+    return np.expand_dims(img_array, axis=0)
 
-    # Grad-CAM Function
-    def compute_gradcam(model, img_array, layer_name="conv5_block3_out"):
-        grad_model = tf.keras.models.Model(
-            inputs=model.input,
-            outputs=[model.get_layer(layer_name).output, model.output]
-        )
-        with tf.GradientTape() as tape:
-            conv_outputs, predictions = grad_model(img_array)
-            class_idx = tf.argmax(predictions[0])
-            loss = predictions[:, class_idx]
+def compute_gradcam(model, img_array, layer_name="conv5_block3_out"):
+    grad_model = tf.keras.models.Model(
+        [model.inputs], [model.get_layer(layer_name).output, model.output])
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array)
+        loss = predictions[:, tf.argmax(predictions[0])]
+    grads = tape.gradient(loss, conv_outputs)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    conv_outputs = conv_outputs[0].numpy()
+    heatmap = np.dot(conv_outputs, pooled_grads.numpy())
+    heatmap = np.maximum(heatmap, 0)
+    heatmap = heatmap / (np.max(heatmap) + 1e-10)
+    return heatmap
 
-        grads = tape.gradient(loss, conv_outputs)
-        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-        conv_outputs = conv_outputs.numpy()[0]
-        heatmap = np.dot(conv_outputs, pooled_grads.numpy())
-        heatmap = np.maximum(heatmap, 0)
-        heatmap /= np.max(heatmap) + 1e-10
-        return heatmap
+def overlay_gradcam(original_img, heatmap):
+    heatmap = cv2.resize(heatmap, (original_img.width, original_img.height))
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+    original = np.array(original_img)
+    if original.ndim == 2:
+        original = cv2.cvtColor(original, cv2.COLOR_GRAY2RGB)
+    superimposed = cv2.addWeighted(original, 0.6, heatmap, 0.4, 0)
+    return superimposed
 
-    # Overlay heatmap
-    def overlay_gradcam(img, heatmap, alpha=0.4):
-        heatmap = cv2.resize(heatmap, (img.width, img.height))
-        heatmap = np.uint8(255 * heatmap)
-        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+# UI
+st.title("🧠 Tuberculosis Detection using ResNet50 + Grad-CAM")
+uploaded_file = st.file_uploader("📤 Upload a Chest X-ray image", type=["jpg", "jpeg", "png"])
 
-        original = np.array(img)
-        if len(original.shape) == 2 or original.shape[-1] == 1:
-            original = cv2.cvtColor(original, cv2.COLOR_GRAY2RGB)
+if uploaded_file is not None:
+    image_pil = Image.open(uploaded_file)
+    st.image(image_pil, caption="Uploaded Image", use_container_width=True)
+    img_array = preprocess_image(image_pil)
 
-        superimposed = cv2.addWeighted(original, 1 - alpha, heatmap, alpha, 0)
-        return superimposed
+    prediction = model.predict(img_array)[0][0]
+    result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
+    confidence = prediction if prediction > 0.5 else 1 - prediction
 
-    # Upload Image
-    st.write("---")
-    uploaded_image = st.file_uploader("📤 Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
+    st.subheader(f"Prediction: **{result}**")
+    st.write(f"Confidence: **{confidence:.2%}**")
 
-    if uploaded_image:
-        image_pil = Image.open(uploaded_image).convert("RGB")
-        st.image(image_pil, caption="🖼️ Uploaded Image", use_container_width=True)
+    heatmap = compute_gradcam(model, img_array)
+    gradcam_output = overlay_gradcam(image_pil, heatmap)
 
-        img_array = preprocess_image(image_pil)
-        prediction = model.predict(img_array)[0][0]
-
-        result = "🦠 Tuberculosis Detected" if prediction > 0.5 else "✅ Normal"
-        confidence = prediction if prediction > 0.5 else 1 - prediction
-
-        st.subheader(f"📊 Prediction: **{result}**")
-        st.write(f"🧮 Confidence: **{confidence:.2%}**")
-
-        # Grad-CAM
-        heatmap = compute_gradcam(model, img_array)
-        gradcam_output = overlay_gradcam(image_pil, heatmap)
-
-        st.subheader("🔥 Grad-CAM Heatmap")
-        st.image(gradcam_output, caption="Grad-CAM Visualization", use_container_width=True)
+    st.subheader("Grad-CAM Visualization")
+    st.image(gradcam_output, caption="Grad-CAM Heatmap", use_container_width=True)
 
