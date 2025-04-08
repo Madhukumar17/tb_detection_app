@@ -35,25 +35,33 @@ from skimage.segmentation import mark_boundaries
 #         st.stop()
 
 @st.cache_resource
-def load_model_from_huggingface():
+def load_model():
     try:
-        st.info("🔄 Downloading model from Hugging Face...")
+        # Try to load from Hugging Face
         model_path = hf_hub_download(
             repo_id="madboi/TB_Detection-Model",
             filename="tb_classification_model.h5",
         )
-        st.success("✅ Model downloaded successfully.")
-
         model = tf.keras.models.load_model(model_path)
         return model
 
     except Exception as e:
-        st.error("🚨 Model loading failed.")
-        st.code(str(e))
-        st.stop()
+        st.warning("🚨 Could not fetch model from Hugging Face.")
+        st.info("📥 Please upload the `.h5` model file manually below.")
+        
+        uploaded_model = st.file_uploader("Upload Model File", type=["h5"])
+        if uploaded_model is not None:
+            with open("uploaded_model.h5", "wb") as f:
+                f.write(uploaded_model.getbuffer())
+            model = tf.keras.models.load_model("uploaded_model.h5")
+            return model
+        else:
+            st.stop()
 
 # Load it once (cached)
-model = load_model_from_huggingface()
+# model = load_model_from_huggingface()
+model = load_model()
+
 
 def preprocess_image(img):
     img = img.resize((224, 224))  # Resize to model input size
