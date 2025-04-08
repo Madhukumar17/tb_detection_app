@@ -17,21 +17,39 @@ from skimage.segmentation import mark_boundaries
 # url = "https://huggingface.co/madboi/TB_Detection-Model/resolve/main/tb_classification_model.h5"
 # model_path = "tb_classification_model.h5"
 
+# @st.cache_resource
+# def load_model_from_huggingface():
+#     try:
+#         # Download the model from your Hugging Face repo
+#         model_path = hf_hub_download(
+#             repo_id="madboi/TB_Detection-Model",  
+#             filename="tb_classification_model.h5",  
+#         )
+
+#         # Load the model
+#         model = tf.keras.models.load_model(model_path)
+#         return model
+
+#     except Exception as e:
+#         st.error(f"Model loading failed: {e}")
+#         st.stop()
+
 @st.cache_resource
 def load_model_from_huggingface():
     try:
-        # Download the model from your Hugging Face repo
+        st.info("🔄 Downloading model from Hugging Face...")
         model_path = hf_hub_download(
-            repo_id="madboi/TB_Detection-Model",  
-            filename="tb_classification_model.h5",  
+            repo_id="madboi/TB_Detection-Model",
+            filename="tb_classification_model.h5",
         )
+        st.success("✅ Model downloaded successfully.")
 
-        # Load the model
         model = tf.keras.models.load_model(model_path)
         return model
 
     except Exception as e:
-        st.error(f"Model loading failed: {e}")
+        st.error("🚨 Model loading failed.")
+        st.code(str(e))
         st.stop()
 
 # Load it once (cached)
