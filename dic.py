@@ -168,42 +168,26 @@ import cv2
 from PIL import Image
 from tensorflow.keras.preprocessing import image
 import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU
-
-st.set_page_config(page_title="TB Detection with Grad-CAM", layout="centered")
-st.title("🧠 Tuberculosis Detection using ResNet50 + Grad-CAM")
-st.write("📥 Upload your **`.h5` model file** below (only once):")
-
-# Upload .h5 model
-uploaded_model = st.file_uploader("Upload `.h5` model", type=["h5"])
-
-import streamlit as st
-import numpy as np
-import tensorflow as tf
-import cv2
-from PIL import Image
 import requests
-import os
+
+
 
 st.set_page_config(page_title="TB Detection + Grad-CAM", layout="centered")
-st.title("🧠 Tuberculosis Detection using ResNet50 + Grad-CAM")
-
-MODEL_URL = "https://github.com/Madhukumar17/tb_detection_app/releases/download/v1.0/tb_classification_model.h5"
-MODEL_PATH = "tb_classification_model.h5"
 
 @st.cache_resource
-def download_and_load_model():
-    if not os.path.exists(MODEL_PATH):
-        with st.spinner("📦 Downloading model..."):
-            r = requests.get(MODEL_URL)
-            with open(MODEL_PATH, "wb") as f:
-                f.write(r.content)
-    model = tf.keras.models.load_model(MODEL_PATH)
+def load_model():
+    url = "https://github.com/Madhukumar17/tb_detection_app/releases/download/v1.0/tb_classification_model.h5"
+    model_path = "tb_classification_model.h5"
+
+    # Download only once
+    if not os.path.exists(model_path):
+        with open(model_path, "wb") as f:
+            f.write(requests.get(url).content)
+
+    model = tf.keras.models.load_model(model_path)
     return model
 
-model = download_and_load_model()
-
+model = load_model()
 def preprocess_image(img):
     img = img.resize((224, 224))
     img_array = np.array(img)
