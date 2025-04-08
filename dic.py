@@ -254,5 +254,5 @@ if uploaded_image:
     gradcam_img = overlay_gradcam(image_pil, heatmap)
     st.subheader("Grad-CAM Visualization")
     st.image(gradcam_img, caption="Grad-CAM Heatmap", use_container_width=True)
-_width=True)
+    
 
