@@ -166,14 +166,13 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from PIL import Image
-from tensorflow.keras.preprocessing import image
 import os
 import requests
 
-
-
+# ✅ Must be the FIRST Streamlit command
 st.set_page_config(page_title="TB Detection + Grad-CAM", layout="centered")
 
+# ✅ Load model from GitHub Release only once
 @st.cache_resource
 def load_model():
     url = "https://github.com/Madhukumar17/tb_detection_app/releases/download/v1.0/tb_classification_model.h5"
@@ -181,28 +180,41 @@ def load_model():
 
     # Download only once
     if not os.path.exists(model_path):
-        with open(model_path, "wb") as f:
-            f.write(requests.get(url).content)
+        try:
+            with st.spinner("🔄 Downloading model..."):
+                response = requests.get(url)
+                response.raise_for_status()  # Raise exception if failed
+                with open(model_path, "wb") as f:
+                    f.write(response.content)
+        except Exception as e:
+            st.error(f"❌ Failed to download model: {e}")
+            st.stop()
 
-    model = tf.keras.models.load_model(model_path)
-    return model
+    return tf.keras.models.load_model(model_path)
 
 model = load_model()
+
+# ✅ Preprocess image for model
 def preprocess_image(img):
     img = img.resize((224, 224))
     img_array = np.array(img)
+
+    # Handle grayscale
     if img_array.ndim == 2:
         img_array = np.stack([img_array] * 3, axis=-1)
     elif img_array.shape[-1] == 1:
         img_array = np.repeat(img_array, 3, axis=-1)
+
     img_array = img_array.astype(np.float32) / 255.0
     return np.expand_dims(img_array, axis=0)
 
+# ✅ Grad-CAM logic
 def compute_gradcam(model, img_array, layer_name="conv4_block5_out"):
     grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(layer_name).output, model.output])
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array)
         loss = predictions[:, tf.argmax(predictions[0])]
+
     grads = tape.gradient(loss, conv_outputs)
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
     conv_outputs = conv_outputs.numpy()[0]
@@ -219,6 +231,7 @@ def overlay_gradcam(img, heatmap, alpha=0.4):
     superimposed = cv2.addWeighted(original, 1 - alpha, heatmap, alpha, 0)
     return superimposed
 
+# UI: Upload image
 st.write("📤 Upload a Chest X-ray image")
 
 uploaded_image = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
@@ -227,6 +240,8 @@ if uploaded_image:
     st.image(image_pil, caption="Uploaded Image", use_container_width=True)
 
     img_array = preprocess_image(image_pil)
+
+    # Prediction
     prediction = model.predict(img_array)[0][0]
     result = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
     confidence = prediction if prediction > 0.5 else 1 - prediction
@@ -234,9 +249,11 @@ if uploaded_image:
     st.subheader(f"Prediction: **{result}**")
     st.write(f"Confidence: **{confidence:.2%}**")
 
+    # Grad-CAM
     heatmap = compute_gradcam(model, img_array)
     gradcam_img = overlay_gradcam(image_pil, heatmap)
-    st.subheader("Grad-CAM Visualization")
+
+    st.subheader("🧠 Grad-CAM Visualization")
     st.image(gradcam_img, caption="Grad-CAM Heatmap", use_container_width=True)
-    
+
 
