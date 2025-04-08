@@ -232,7 +232,7 @@ def overlay_gradcam(img, heatmap, alpha=0.4):
     return superimposed
 
 # UI: Upload image
-st.write("📤 Upload a Chest X-ray image")
+st.write("🩺 Upload a Chest X-ray to Check for TB")
 
 uploaded_image = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 if uploaded_image:
